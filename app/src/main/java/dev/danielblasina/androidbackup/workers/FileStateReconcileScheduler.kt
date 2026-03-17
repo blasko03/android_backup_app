@@ -28,7 +28,7 @@ class FileStateReconcileScheduler(appContext: Context, workerParams: WorkerParam
                 .setRequiredNetworkType(NetworkType.UNMETERED)
                 .build()
 
-            val work = PeriodicWorkRequestBuilder<FileStateReconcileScheduler>(1, TimeUnit.DAYS)
+            val work = PeriodicWorkRequestBuilder<FileStateReconcileScheduler>(15, TimeUnit.MINUTES)
                 .setConstraints(constraints)
                 .build()
             WorkManager.getInstance(applicationContext)

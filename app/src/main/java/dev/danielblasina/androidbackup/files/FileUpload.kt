@@ -36,7 +36,7 @@ class FileUpload(val file: File) {
         }
         val checksum = fileDigest.digest()
         withRetry({
-            fileUploadService.fileUpload(file.toPath(), fileDigest.digest(), chunks)
+            fileUploadService.fileUpload(file.toPath(), checksum, chunks)
         }, numberOfRetry = RETRIES).getOrThrow()
 
         return checksum

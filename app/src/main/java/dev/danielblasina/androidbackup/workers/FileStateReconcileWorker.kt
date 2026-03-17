@@ -11,7 +11,6 @@ import dev.danielblasina.androidbackup.database.FileActionType
 import dev.danielblasina.androidbackup.database.FileChangeQueue
 import dev.danielblasina.androidbackup.files.FileUploadService
 import dev.danielblasina.androidbackup.files.UploadedFile
-import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.util.logging.Logger
@@ -35,7 +34,7 @@ class FileStateReconcileWorker(appContext: Context, workerParams: WorkerParamete
                 return Result.success()
             }
 
-            val filesToCheck = fileStates.map { f -> UploadedFile(name = File(f.filePath).toPath(), hash = f.hash) }
+            val filesToCheck = fileStates.map { f -> UploadedFile(name = f.filePath, hash = f.hash) }
             val filesToCheckResult = FileUploadService().filesPresent(filesToCheck.toList()).getOrThrow()
             filesToCheckResult.filter { f -> !f.present }
                 .forEach { notFoundFile ->

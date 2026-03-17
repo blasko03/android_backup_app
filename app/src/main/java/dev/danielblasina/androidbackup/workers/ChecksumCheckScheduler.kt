@@ -24,7 +24,7 @@ class ChecksumCheckScheduler(appContext: Context, workerParams: WorkerParameters
             val constraints = Constraints.Builder()
                 .setRequiresCharging(true)
                 .build()
-            val work = PeriodicWorkRequestBuilder<ChecksumCheckScheduler>(1, TimeUnit.DAYS)
+            val work = PeriodicWorkRequestBuilder<ChecksumCheckScheduler>(15, TimeUnit.MINUTES)
                 .setConstraints(constraints)
                 .build()
             WorkManager.getInstance(applicationContext)

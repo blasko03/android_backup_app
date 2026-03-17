@@ -17,7 +17,7 @@ import java.nio.file.Path
 const val MEDIA_TYPE_JSON = "application/json"
 
 data class UploadedFile(
-    val name: Path,
+    val name: String,
     val chunks: List<ByteArray> = listOf(),
     val hash: ByteArray,
 )
@@ -29,7 +29,7 @@ data class UploadedFileCheck(
 class FileUploadService {
 
     val client = OkHttpClient()
-    val uri = URI("http://192.168.1.129:8080/")
+    val uri = URI("http://192.168.1.136:8080/")
 
     fun chunkUpload(filename: String, chunk: ByteArray): Result<Response> {
         val requestBody =
@@ -62,7 +62,7 @@ class FileUploadService {
         checksum: ByteArray,
         chunks: ArrayList<ByteArray>,
     ): Result<Response> {
-        val json = JsonParse.objectToJsonString(UploadedFile(filename, chunks, checksum))
+        val json = JsonParse.objectToJsonString(UploadedFile(filename.toString(), chunks, checksum))
         val request: Request =
             Request
                 .Builder()
@@ -78,7 +78,7 @@ class FileUploadService {
         val request: Request =
             Request
                 .Builder()
-                .url(uri.resolve("file_present").toURL())
+                .url(uri.resolve("has_files").toURL())
                 .post(json.toRequestBody(MEDIA_TYPE_JSON.toMediaType()))
                 .build()
 
