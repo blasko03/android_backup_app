@@ -28,7 +28,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
     }
@@ -55,8 +55,8 @@ dependencies {
     implementation("org.bouncycastle:bcprov-jdk15to18:1.77")
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.21.0")
-    implementation("androidx.work:work-runtime-ktx:${workVersion}")
-    implementation("androidx.room:room-runtime:${roomVersion}")
+    implementation("androidx.work:work-runtime-ktx:$workVersion")
+    implementation("androidx.room:room-runtime:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     testImplementation(libs.junit)

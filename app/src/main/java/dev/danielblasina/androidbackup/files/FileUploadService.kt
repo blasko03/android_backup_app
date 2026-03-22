@@ -29,7 +29,7 @@ data class UploadedFileCheck(
 class FileUploadService {
 
     val client = OkHttpClient()
-    val uri = URI("http://192.168.1.136:8080/")
+    val uri = URI("http://192.168.1.53:8080/")
 
     fun chunkUpload(filename: String, chunk: ByteArray): Result<Response> {
         val requestBody =
