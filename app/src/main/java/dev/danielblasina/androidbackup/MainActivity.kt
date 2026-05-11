@@ -66,7 +66,6 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun MainApplication() {
-
         val scope = rememberCoroutineScope()
         var queueCount by remember { mutableIntStateOf(0) }
         var filesCount by remember { mutableIntStateOf(0) }
@@ -132,20 +131,19 @@ class MainActivity : ComponentActivity() {
                                 filesCount = db.fileStateDao().count()
                                 countNextServerCheck = db.fileStateDao().countNextServerCheck(Instant.now().minus(FileStateReconcileWorker.checkFrequency))
                                 countNextHashCheck = db.fileStateDao().countNextHashCheck(Instant.now().minus(ChecksumCheckWorker.checkFrequency))
-                                uuid = db.settingDao().get(SettingType.UUID).toString();
-                                password = db.settingDao().get(SettingType.PASSWORD).toString();
-                                server = db.settingDao().get(SettingType.SERVER_ADDRESS).toString();
-
+                                uuid = db.settingDao().get(SettingType.UUID).toString()
+                                password = db.settingDao().get(SettingType.PASSWORD).toString()
+                                server = db.settingDao().get(SettingType.SERVER_ADDRESS).toString()
                             }
                         }
                     }) {
                         Text("refresh")
                     }
 
-                    Text("Total in queue: ${queueCount}")
-                    Text("Total files: ${filesCount}")
-                    Text("Total reconciliation check: ${countNextServerCheck}")
-                    Text("Total hash check: ${countNextHashCheck}")
+                    Text("Total in queue: $queueCount")
+                    Text("Total files: $filesCount")
+                    Text("Total reconciliation check: $countNextServerCheck")
+                    Text("Total hash check: $countNextHashCheck")
 
                     OutlinedTextField(
                         value = uuid,
@@ -154,8 +152,10 @@ class MainActivity : ComponentActivity() {
                             scope.launch {
                                 withContext(Dispatchers.IO) {
                                     updateSetting(SettingType.UUID, value)
-                                }} },
-                        label = { Text("uuid") }
+                                }
+                            }
+                        },
+                        label = { Text("uuid") },
                     )
                     OutlinedTextField(
                         value = password,
@@ -164,8 +164,10 @@ class MainActivity : ComponentActivity() {
                             scope.launch {
                                 withContext(Dispatchers.IO) {
                                     updateSetting(SettingType.PASSWORD, value)
-                                }} },
-                        label = { Text("password") }
+                                }
+                            }
+                        },
+                        label = { Text("password") },
                     )
                     OutlinedTextField(
                         value = server,
@@ -174,8 +176,10 @@ class MainActivity : ComponentActivity() {
                             scope.launch {
                                 withContext(Dispatchers.IO) {
                                     updateSetting(SettingType.SERVER_ADDRESS, value)
-                                }} },
-                        label = { Text("server address") }
+                                }
+                            }
+                        },
+                        label = { Text("server address") },
                     )
                 }
             }

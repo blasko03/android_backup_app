@@ -9,7 +9,6 @@ import java.io.FileInputStream
 import java.security.MessageDigest
 import java.util.logging.Logger
 
-
 const val CHUNK_SIZE = 1024 * 1024
 const val RETRIES = 3
 class FileUpload(auth: FileUploadAuth, val file: File) {
@@ -19,7 +18,7 @@ class FileUpload(auth: FileUploadAuth, val file: File) {
     fun upload(): ByteArray {
         logger.info { "Start upload of file ${file.path}" }
         val chunks = ArrayList<ByteArray>()
-        val fileDigest = MessageDigest.getInstance("SHA-256", getBCProvider());
+        val fileDigest = MessageDigest.getInstance("SHA-256", getBCProvider())
         FileInputStream(file).use { fis ->
             var chunk: ByteArray
 

@@ -68,7 +68,7 @@ class FileUploadService(private val auth: FileUploadAuth) {
         chunks: ArrayList<ByteArray>,
     ): Result<String> {
         val hash = Hex.toHexString(checksum)
-        val chunksEncoded = chunks.map { c -> Hex.toHexString(c) }.toList();
+        val chunksEncoded = chunks.map { c -> Hex.toHexString(c) }.toList()
         val json = JsonParse.objectToJsonString(UploadedFile(filename.toString(), chunksEncoded, hash))
         val request: Request = requestBuilder()
             .url(auth.address.resolve("file").toURL())

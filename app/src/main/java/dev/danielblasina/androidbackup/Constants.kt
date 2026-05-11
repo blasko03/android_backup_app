@@ -3,14 +3,14 @@ package dev.danielblasina.androidbackup
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.Security
 
-var bc_initialized = false
+var bcInitialized = false
 const val BC_PROVIDER_NAME = "BC"
 
 fun getBCProvider(): String {
-    if (!bc_initialized){
+    if (!bcInitialized) {
         Security.removeProvider(BC_PROVIDER_NAME)
         Security.addProvider(BouncyCastleProvider())
-        bc_initialized = true
+        bcInitialized = true
     }
     return BC_PROVIDER_NAME
 }
