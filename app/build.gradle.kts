@@ -57,6 +57,7 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:2.21.0")
     implementation("androidx.work:work-runtime-ktx:$workVersion")
     implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("com.auth0.android:jwtdecode:2.0.2")
     ksp("androidx.room:room-compiler:$roomVersion")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     testImplementation(libs.junit)

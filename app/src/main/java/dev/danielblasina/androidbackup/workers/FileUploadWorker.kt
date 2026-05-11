@@ -10,6 +10,7 @@ import dev.danielblasina.androidbackup.database.AppDatabase
 import dev.danielblasina.androidbackup.database.FileActionType
 import dev.danielblasina.androidbackup.database.FileState
 import dev.danielblasina.androidbackup.files.FileUpload
+import dev.danielblasina.androidbackup.files.FileUploadAuth
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Files
@@ -30,7 +31,7 @@ class FileUploadWorker(appContext: Context, workerParams: WorkerParameters) : Wo
                 if (fileChange.actionType == FileActionType.REMOVE) {
                     fileStataDao.delete(fileChange.filePath)
                 } else {
-                    val hash = FileUpload(File(fileChange.filePath)).upload()
+                    val hash = FileUpload(FileUploadAuth.fromDatabase(applicationContext), File(fileChange.filePath)).upload()
                     val fileAttr = Files.readAttributes(
                         File(fileChange.filePath).toPath(),
                         BasicFileAttributes::class.java,

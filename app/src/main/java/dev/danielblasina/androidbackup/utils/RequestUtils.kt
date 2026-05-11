@@ -1,7 +1,7 @@
 package dev.danielblasina.androidbackup.utils
 
+import android.util.Log
 import okhttp3.Call
-import okhttp3.Response
 import okio.IOException
 import java.net.HttpURLConnection
 import java.util.logging.Logger
@@ -28,18 +28,19 @@ inline fun <reified T> Call.executeWithRescueJson(successCodes: Array<Int> = arr
     }
 }
 
-fun Call.executeWithRescue(successCodes: Array<Int> = arrayOf()): Result<Response> {
+fun Call.executeWithRescue(successCodes: Array<Int> = arrayOf()): Result<String> {
     try {
         execute().use { res ->
             if (successCodes.isNotEmpty() && res.code in successCodes) {
-                return Result.success(res)
+                return Result.success(res.body.string())
             }
             if (res.isSuccessful) {
-                return Result.success(res)
+                return Result.success(res.body.string())
             }
             if (res.code == HttpURLConnection.HTTP_NOT_FOUND) {
                 return Result.failure(NotFoundError(res))
             }
+            Log.e(this::javaClass.name, res.toString())
             return Result.failure(FailedRequestError(res))
         }
     } catch (e: IOException) {
@@ -47,9 +48,9 @@ fun Call.executeWithRescue(successCodes: Array<Int> = arrayOf()): Result<Respons
     }
 }
 
-fun withRetry(operation: () -> Result<Response>, numberOfRetry: Int): Result<Response> {
+fun <T> withRetry(operation: () -> Result<T>, numberOfRetry: Int): Result<T> {
     val logger: Logger = Logger.getLogger("withRetry")
-    var result: Result<Response> = Result.failure(Exception())
+    var result: Result<T> = Result.failure(Exception())
     for (i in (1..numberOfRetry)) {
         result = operation()
             .onSuccess { res ->

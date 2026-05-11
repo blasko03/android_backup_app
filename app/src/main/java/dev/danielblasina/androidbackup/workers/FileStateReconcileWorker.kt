@@ -9,8 +9,10 @@ import androidx.work.WorkerParameters
 import dev.danielblasina.androidbackup.database.AppDatabase
 import dev.danielblasina.androidbackup.database.FileActionType
 import dev.danielblasina.androidbackup.database.FileChangeQueue
+import dev.danielblasina.androidbackup.files.FileUploadAuth
 import dev.danielblasina.androidbackup.files.FileUploadService
 import dev.danielblasina.androidbackup.files.UploadedFile
+import org.bouncycastle.util.encoders.Hex
 import java.time.Duration
 import java.time.Instant
 import java.util.logging.Logger
@@ -34,8 +36,8 @@ class FileStateReconcileWorker(appContext: Context, workerParams: WorkerParamete
                 return Result.success()
             }
 
-            val filesToCheck = fileStates.map { f -> UploadedFile(name = f.filePath, hash = f.hash) }
-            val filesToCheckResult = FileUploadService().filesPresent(filesToCheck.toList()).getOrThrow()
+            val filesToCheck = fileStates.map { f -> UploadedFile(name = f.filePath, hash = Hex.toHexString(f.hash)) }
+            val filesToCheckResult = FileUploadService(FileUploadAuth.fromDatabase(applicationContext)).filesPresent(filesToCheck.toList()).getOrThrow()
             filesToCheckResult.filter { f -> !f.present }
                 .forEach { notFoundFile ->
                     logger.fine { "Detected file not found on server for ${notFoundFile.name} adding to FileChangeQueue" }

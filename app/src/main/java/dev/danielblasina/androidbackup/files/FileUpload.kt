@@ -1,32 +1,34 @@
 package dev.danielblasina.androidbackup.files
 
+import dev.danielblasina.androidbackup.getBCProvider
 import dev.danielblasina.androidbackup.utils.NotFoundError
 import dev.danielblasina.androidbackup.utils.withRetry
-import okhttp3.Response
+import org.bouncycastle.util.encoders.Hex
 import java.io.File
 import java.io.FileInputStream
 import java.security.MessageDigest
-import java.util.Base64
 import java.util.logging.Logger
+
 
 const val CHUNK_SIZE = 1024 * 1024
 const val RETRIES = 3
-class FileUpload(val file: File) {
+class FileUpload(auth: FileUploadAuth, val file: File) {
     val logger: Logger = Logger.getLogger(this.javaClass.name)
-    val fileUploadService = FileUploadService()
+    val fileUploadService = FileUploadService(auth)
 
     fun upload(): ByteArray {
         logger.info { "Start upload of file ${file.path}" }
         val chunks = ArrayList<ByteArray>()
-        val fileDigest = MessageDigest.getInstance("SHA-256")
+        val fileDigest = MessageDigest.getInstance("SHA-256", getBCProvider());
         FileInputStream(file).use { fis ->
             var chunk: ByteArray
+
             while (run {
                     chunk = fis.readNBytes(CHUNK_SIZE)
                     chunk
                 }.isNotEmpty()
             ) {
-                val hash = MessageDigest.getInstance("SHA-256").digest(chunk)
+                val hash = MessageDigest.getInstance("SHA-256", getBCProvider()).digest(chunk)
                 withRetry({ uploadChunk(chunk, hash) }, numberOfRetry = RETRIES)
                     .onSuccess {
                         chunks.add(hash)
@@ -34,6 +36,7 @@ class FileUpload(val file: File) {
                     }.getOrThrow()
             }
         }
+
         val checksum = fileDigest.digest()
         withRetry({
             fileUploadService.fileUpload(file.toPath(), checksum, chunks)
@@ -42,8 +45,8 @@ class FileUpload(val file: File) {
         return checksum
     }
 
-    private fun uploadChunk(chunk: ByteArray, chunkDigest: ByteArray): Result<Response> {
-        val chunkDigestB64 = Base64.getUrlEncoder().encodeToString(chunkDigest)
+    private fun uploadChunk(chunk: ByteArray, chunkDigest: ByteArray): Result<String> {
+        val chunkDigestB64 = Hex.toHexString(chunkDigest)
 
         fileUploadService
             .chunkPresent(chunkDigestB64)
