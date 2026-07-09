@@ -8,8 +8,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -19,9 +21,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.delay
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkQuery
@@ -71,6 +76,7 @@ class MainActivity : ComponentActivity() {
         var filesCount by remember { mutableIntStateOf(0) }
         var countNextServerCheck by remember { mutableIntStateOf(0) }
         var countNextHashCheck by remember { mutableIntStateOf(0) }
+        var schedulerStatus by remember { mutableStateOf("Not started") }
         var uuid by remember { mutableStateOf("") }
         var password by remember { mutableStateOf("") }
         var server by remember { mutableStateOf("") }
@@ -102,14 +108,23 @@ class MainActivity : ComponentActivity() {
                     }) {
                         Text("Start FileStateReconcile")
                     }
-                    Button(onClick = {
-                        logger.info { "Start schedule" }
-
-                        FileChangeScheduler.start(applicationContext)
-                    }) {
-                        Text("Start schedule")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Button(
+                            onClick = {
+                                logger.info { "Start schedule" }
+                                FileChangeScheduler.start(applicationContext)
+                            },
+                            enabled = schedulerStatus != "ENQUEUED" && schedulerStatus != "RUNNING",
+                        ) {
+                            Text("Start schedule")
+                        }
+                        Text(
+                            text = schedulerStatus,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
                     }
-                    Button(onClick = {
+
+                    val refreshData: suspend () -> Unit = {
                         WorkManager.getInstance(applicationContext)
                             .getWorkInfos(
                                 WorkQuery.fromStates(
@@ -124,18 +139,33 @@ class MainActivity : ComponentActivity() {
                             .get()
                             .forEach { wi -> logger.info(wi.id.toString() + " : " + wi.state + " : " + wi.nextScheduleTimeMillis + " : " + wi.tags + " : " + wi.toString()) }
 
-                        scope.launch {
-                            withContext(Dispatchers.IO) {
-                                val db = AppDatabase.getDatabase(applicationContext)
-                                queueCount = db.fileChangeQueueDao().count()
-                                filesCount = db.fileStateDao().count()
-                                countNextServerCheck = db.fileStateDao().countNextServerCheck(Instant.now().minus(FileStateReconcileWorker.checkFrequency))
-                                countNextHashCheck = db.fileStateDao().countNextHashCheck(Instant.now().minus(ChecksumCheckWorker.checkFrequency))
-                                uuid = db.settingDao().get(SettingType.UUID).toString()
-                                password = db.settingDao().get(SettingType.PASSWORD).toString()
-                                server = db.settingDao().get(SettingType.SERVER_ADDRESS).toString()
-                            }
+                        val schedulerInfos = WorkManager.getInstance(applicationContext)
+                            .getWorkInfosForUniqueWork(FileChangeScheduler.Companion::class.java.name)
+                            .get()
+                        schedulerStatus = if (schedulerInfos.isNullOrEmpty()) "Not scheduled"
+                            else schedulerInfos.first().state.name
+
+                        withContext(Dispatchers.IO) {
+                            val db = AppDatabase.getDatabase(applicationContext)
+                            queueCount = db.fileChangeQueueDao().count()
+                            filesCount = db.fileStateDao().count()
+                            countNextServerCheck = db.fileStateDao().countNextServerCheck(Instant.now().minus(FileStateReconcileWorker.checkFrequency))
+                            countNextHashCheck = db.fileStateDao().countNextHashCheck(Instant.now().minus(ChecksumCheckWorker.checkFrequency))
+                            uuid = db.settingDao().get(SettingType.UUID).toString()
+                            password = db.settingDao().get(SettingType.PASSWORD).toString()
+                            server = db.settingDao().get(SettingType.SERVER_ADDRESS).toString()
                         }
+                    }
+
+                    LaunchedEffect(Unit) {
+                        while (true) {
+                            refreshData()
+                            delay(5_000)
+                        }
+                    }
+
+                    Button(onClick = {
+                        scope.launch { refreshData() }
                     }) {
                         Text("refresh")
                     }
