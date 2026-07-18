@@ -83,6 +83,7 @@ fun MainScreen(
     var filesCount by remember { mutableIntStateOf(0) }
     var countNextServerCheck by remember { mutableIntStateOf(0) }
     var countNextHashCheck by remember { mutableIntStateOf(0) }
+    var runsCount by remember { mutableIntStateOf(0) }
     var schedulerStatus by remember { mutableStateOf("Not started") }
     var detectorState by remember { mutableStateOf<WorkInfo.State?>(null) }
     var uploaderState by remember { mutableStateOf<WorkInfo.State?>(null) }
@@ -116,6 +117,7 @@ fun MainScreen(
             filesCount = db.fileStateDao().count()
             countNextServerCheck = db.fileStateDao().countNextServerCheck(Instant.now().minus(FileStateReconcileWorker.checkFrequency))
             countNextHashCheck = db.fileStateDao().countNextHashCheck(Instant.now().minus(ChecksumCheckWorker.checkFrequency))
+            runsCount = db.workersRunsDao().count()
         }
     }
 
@@ -183,6 +185,7 @@ fun MainScreen(
                 filesCount = filesCount,
                 countNextServerCheck = countNextServerCheck,
                 countNextHashCheck = countNextHashCheck,
+                runsCount = runsCount,
             )
 
             FilledTonalButton(
@@ -278,6 +281,7 @@ private fun StatsCard(
     filesCount: Int,
     countNextServerCheck: Int,
     countNextHashCheck: Int,
+    runsCount: Int,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -291,6 +295,7 @@ private fun StatsCard(
             StatRow("Files tracked", filesCount)
             StatRow("Pending reconciliation", countNextServerCheck)
             StatRow("Pending hash check", countNextHashCheck)
+            StatRow("Runs", runsCount)
         }
     }
 }

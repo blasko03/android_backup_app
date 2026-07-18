@@ -12,10 +12,10 @@ import androidx.work.WorkerParameters
 import java.time.Duration
 import java.util.logging.Logger
 
-class FileChangeScheduler(appContext: Context, workerParams: WorkerParameters) : Worker(appContext, workerParams) {
+class FileChangeScheduler(appContext: Context, workerParams: WorkerParameters) : WorkerWithRunLog(appContext, workerParams) {
     val logger: Logger = Logger.getLogger(this.javaClass.name)
 
-    override fun doWork(): Result {
+    override fun doWorkAction(): Result {
         logger.info { "Started ${this.javaClass.name}" }
         FileChangeWorker.start(applicationContext)
         FileUploadWorker.start(applicationContext)

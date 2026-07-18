@@ -11,11 +11,10 @@ import dev.danielblasina.androidbackup.database.AppDatabase
 import dev.danielblasina.androidbackup.files.FileChanges
 import java.util.logging.Logger
 
-class FileChangeWorker(appContext: Context, workerParams: WorkerParameters) : Worker(appContext, workerParams) {
-    val db = AppDatabase.getDatabase(applicationContext)
+class FileChangeWorker(appContext: Context, workerParams: WorkerParameters) : WorkerWithRunLog(appContext, workerParams) {
     val logger: Logger = Logger.getLogger(this.javaClass.name)
 
-    override fun doWork(): Result {
+    override fun doWorkAction(): Result {
         val fileChangeQueueDao = db.fileChangeQueueDao()
         val fileStateDao = db.fileStateDao()
         logger.info(

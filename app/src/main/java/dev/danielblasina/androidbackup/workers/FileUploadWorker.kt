@@ -18,11 +18,10 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.time.Instant
 import java.util.logging.Logger
 
-class FileUploadWorker(appContext: Context, workerParams: WorkerParameters) : Worker(appContext, workerParams) {
+class FileUploadWorker(appContext: Context, workerParams: WorkerParameters) : WorkerWithRunLog(appContext, workerParams) {
     val logger: Logger = Logger.getLogger(this.javaClass.name)
-    val db = AppDatabase.getDatabase(applicationContext)
 
-    override fun doWork(): Result {
+    override fun doWorkAction(): Result {
         val fileChangeQueueDao = db.fileChangeQueueDao()
         val fileStataDao = db.fileStateDao()
         while (true) {

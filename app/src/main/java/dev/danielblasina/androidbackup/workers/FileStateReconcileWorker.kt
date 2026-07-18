@@ -17,11 +17,10 @@ import java.time.Duration
 import java.time.Instant
 import java.util.logging.Logger
 
-class FileStateReconcileWorker(appContext: Context, workerParams: WorkerParameters) : Worker(appContext, workerParams) {
-    val db = AppDatabase.getDatabase(applicationContext)
+class FileStateReconcileWorker(appContext: Context, workerParams: WorkerParameters) : WorkerWithRunLog(appContext, workerParams) {
     val logger: Logger = Logger.getLogger(this.javaClass.name)
 
-    override fun doWork(): Result {
+    override fun doWorkAction(): Result {
         logger.info { "FileStateReconcile started" }
         val fileStateDao = db.fileStateDao()
         var iteration = 0

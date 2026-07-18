@@ -16,12 +16,10 @@ import java.time.Duration
 import java.time.Instant
 import java.util.logging.Logger
 
-class ChecksumCheckWorker(appContext: Context, workerParams: WorkerParameters) : Worker(appContext, workerParams) {
-    val db = AppDatabase.getDatabase(applicationContext)
-
+class ChecksumCheckWorker(appContext: Context, workerParams: WorkerParameters) : WorkerWithRunLog(appContext, workerParams) {
     val logger: Logger = Logger.getLogger(this.javaClass.name)
 
-    override fun doWork(): Result {
+    override fun doWorkAction(): Result {
         val fileStateDao = db.fileStateDao()
         var iteration = 0
         while (iteration < MAX_ITERATIONS) {
