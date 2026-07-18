@@ -8,15 +8,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -36,6 +43,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.work.WorkInfo
@@ -50,7 +59,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
+import dev.danielblasina.androidbackup.database.WorkersState
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.logging.Logger
 
 private fun statusColor(state: WorkInfo.State?): Color = when (state) {
@@ -59,6 +77,16 @@ private fun statusColor(state: WorkInfo.State?): Color = when (state) {
     WorkInfo.State.RUNNING -> Color(0xFF2196F3)
     WorkInfo.State.ENQUEUED -> Color(0xFFFF9800)
     else -> Color.Gray
+}
+
+private fun statusIcon(state: WorkInfo.State?): ImageVector = when (state) {
+    WorkInfo.State.SUCCEEDED -> Icons.Default.CheckCircle
+    WorkInfo.State.FAILED -> Icons.Default.Clear
+    WorkInfo.State.RUNNING -> Icons.Default.PlayArrow
+    WorkInfo.State.ENQUEUED -> Icons.Default.DateRange
+    WorkInfo.State.CANCELLED -> Icons.Default.Clear
+    WorkInfo.State.BLOCKED -> Icons.Default.Clear
+    else -> Icons.Default.CheckCircle
 }
 
 private fun statusLabel(state: WorkInfo.State?): String = when (state) {
@@ -84,7 +112,8 @@ fun MainScreen(
     var countNextServerCheck by remember { mutableIntStateOf(0) }
     var countNextHashCheck by remember { mutableIntStateOf(0) }
     var runsCount by remember { mutableIntStateOf(0) }
-    var schedulerStatus by remember { mutableStateOf("Not started") }
+    var chartSeries by remember { mutableStateOf<Map<Pair<String, WorkersState>, List<Int>>>(emptyMap()) }
+    var schedulerState by remember { mutableStateOf<WorkInfo.State?>(null) }
     var detectorState by remember { mutableStateOf<WorkInfo.State?>(null) }
     var uploaderState by remember { mutableStateOf<WorkInfo.State?>(null) }
     var checksumState by remember { mutableStateOf<WorkInfo.State?>(null) }
@@ -100,11 +129,7 @@ fun MainScreen(
         val schedulerInfos = WorkManager.getInstance(context)
             .getWorkInfosForUniqueWork(FileChangeScheduler.Companion::class.java.name)
             .get()
-        schedulerStatus = if (schedulerInfos.isNullOrEmpty()) {
-            "Not scheduled"
-        } else {
-            schedulerInfos.first().state.name
-        }
+        schedulerState = schedulerInfos.firstOrNull()?.state
 
         detectorState = workState(FileChangeWorker::class.java.name)
         uploaderState = workState(FileUploadWorker::class.java.name)
@@ -118,6 +143,18 @@ fun MainScreen(
             countNextServerCheck = db.fileStateDao().countNextServerCheck(Instant.now().minus(FileStateReconcileWorker.checkFrequency))
             countNextHashCheck = db.fileStateDao().countNextHashCheck(Instant.now().minus(ChecksumCheckWorker.checkFrequency))
             runsCount = db.workersRunsDao().count()
+            val thirtyDaysAgo = Instant.now().minus(30, ChronoUnit.DAYS)
+            val runs = db.workersRunsDao().list(thirtyDaysAgo)
+            val series = mutableMapOf<Pair<String, WorkersState>, MutableList<Int>>()
+            for (run in runs) {
+                val daysSince = ChronoUnit.DAYS.between(thirtyDaysAgo, run.startedAt)
+                val idx = daysSince.toInt()
+                if (idx in 0 until 30) {
+                    val key = run.workerClass to run.state
+                    series.getOrPut(key) { MutableList(30) { 0 } }[idx]++
+                }
+            }
+            chartSeries = series
         }
     }
 
@@ -153,7 +190,7 @@ fun MainScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             WorkersCard(
-                schedulerStatus = schedulerStatus,
+                schedulerState = schedulerState,
                 detectorState = detectorState,
                 uploaderState = uploaderState,
                 checksumState = checksumState,
@@ -188,6 +225,10 @@ fun MainScreen(
                 runsCount = runsCount,
             )
 
+            RunsChartCard(
+                seriesMap = chartSeries,
+            )
+
             FilledTonalButton(
                 onClick = { scope.launch { refreshData() } },
                 modifier = Modifier.fillMaxWidth(),
@@ -217,17 +258,18 @@ private fun WorkerButton(
             Text(label)
         }
         Spacer(Modifier.width(8.dp))
-        Text(
-            text = "● ${statusLabel(state)}",
-            style = MaterialTheme.typography.labelSmall,
-            color = statusColor(state),
+        Icon(
+            imageVector = statusIcon(state),
+            contentDescription = statusLabel(state),
+            tint = statusColor(state),
+            modifier = Modifier.size(20.dp),
         )
     }
 }
 
 @Composable
 private fun WorkersCard(
-    schedulerStatus: String,
+    schedulerState: WorkInfo.State?,
     detectorState: WorkInfo.State?,
     uploaderState: WorkInfo.State?,
     checksumState: WorkInfo.State?,
@@ -259,16 +301,17 @@ private fun WorkersCard(
             ) {
                 FilledTonalButton(
                     onClick = onStartSchedule,
-                    enabled = schedulerStatus != "ENQUEUED" && schedulerStatus != "RUNNING",
+                    enabled = schedulerState != WorkInfo.State.ENQUEUED && schedulerState != WorkInfo.State.RUNNING,
                     modifier = Modifier.weight(1f),
                 ) {
                     Text("Start Schedule")
                 }
                 Spacer(Modifier.width(12.dp))
-                Text(
-                    text = schedulerStatus,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Icon(
+                    imageVector = statusIcon(schedulerState),
+                    contentDescription = statusLabel(schedulerState),
+                    tint = statusColor(schedulerState),
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
@@ -312,5 +355,132 @@ private fun StatRow(label: String, value: Int) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.primary,
         )
+    }
+}
+
+@Composable
+private fun RunsChartCard(seriesMap: Map<Pair<String, WorkersState>, List<Int>>) {
+    var filterState by remember { mutableStateOf<WorkersState?>(null) }
+    var filterWorkerClass by remember { mutableStateOf<String?>(null) }
+
+    val chartColors = listOf(
+        Color(0xFFE53935), Color(0xFF43A047), Color(0xFF1E88E5), Color(0xFF8E24AA),
+    )
+    val workerClasses = seriesMap.keys.map { it.first }.distinct().sorted()
+    val wcColors = workerClasses.mapIndexed { i, wc -> wc to chartColors[i % chartColors.size] }.toMap()
+    val allFilteredSeries = seriesMap.filterKeys { (wc, state) ->
+        (filterState == null || state == filterState) &&
+        (filterWorkerClass == null || wc == filterWorkerClass)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Worker Runs (Last 30 Days)", style = MaterialTheme.typography.titleMedium)
+            HorizontalDivider()
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = filterState == null, onClick = { filterState = null }, label = { Text("All") })
+                FilterChip(selected = filterState == WorkersState.SUCCEEDED, onClick = { filterState = WorkersState.SUCCEEDED }, label = { Text("Success") })
+                FilterChip(selected = filterState == WorkersState.FAILED, onClick = { filterState = WorkersState.FAILED }, label = { Text("Failed") })
+            }
+            if (allFilteredSeries.isEmpty()) {
+                Text(
+                    "No run data available",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 16.dp),
+                )
+            } else {
+                RunsChart(
+                    seriesMap = allFilteredSeries,
+                    allWorkerClasses = workerClasses,
+                    wcColors = wcColors,
+                    selectedWorkerClass = filterWorkerClass,
+                    onWorkerClassClick = { wc ->
+                        filterWorkerClass = if (filterWorkerClass == wc) null else wc
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RunsChart(
+    seriesMap: Map<Pair<String, WorkersState>, List<Int>>,
+    allWorkerClasses: List<String> = emptyList(),
+    wcColors: Map<String, Color> = emptyMap(),
+    selectedWorkerClass: String? = null,
+    onWorkerClassClick: (String) -> Unit = {},
+) {
+    val maxY = (seriesMap.values.maxOfOrNull { it.maxOrNull() ?: 0 } ?: 1).coerceAtLeast(1)
+
+    Canvas(modifier = Modifier.fillMaxWidth().height(280.dp)) {
+        val left = 48.dp.toPx()
+        val bottom = 32.dp.toPx()
+        val top = 8.dp.toPx()
+        val right = 8.dp.toPx()
+        val pw = size.width - left - right
+        val ph = size.height - top - bottom
+        val gridLines = 5
+
+        for (i in 0..gridLines) {
+            val y = top + ph * (1f - i.toFloat() / gridLines)
+            drawLine(Color.LightGray.copy(alpha = 0.5f), Offset(left, y), Offset(left + pw, y), 1f)
+        }
+
+        for ((key, data) in seriesMap) {
+            val color = wcColors[key.first] ?: Color.Gray
+            val path = Path()
+            data.forEachIndexed { day, count ->
+                val x = left + (day.toFloat() / 29f) * pw
+                val y = top + ph * (1f - count.toFloat() / maxY)
+                if (day == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            val effect = if (key.second == WorkersState.SUCCEEDED) null
+            else PathEffect.dashPathEffect(floatArrayOf(10f, 6f))
+            drawPath(path, color, style = Stroke(2.dp.toPx(), pathEffect = effect))
+        }
+
+        drawLine(Color.Gray, Offset(left, top), Offset(left, top + ph))
+        drawLine(Color.Gray, Offset(left, top + ph), Offset(left + pw, top + ph))
+
+        val labelSize = 11.dp.toPx()
+        val textPaint = android.graphics.Paint().apply {
+            color = android.graphics.Color.GRAY
+            textSize = labelSize
+        }
+        for (i in 0..gridLines) {
+            val y = top + ph * (1f - i.toFloat() / gridLines)
+            drawContext.canvas.nativeCanvas.drawText(
+                (maxY * i / gridLines).toString(), left - 40.dp.toPx(), y + 4f, textPaint,
+            )
+        }
+        for (day in 0..30 step 5) {
+            val x = left + (day.toFloat() / 29f) * pw
+            drawContext.canvas.nativeCanvas.drawText(
+                if (day == 30) "0d" else "${30 - day}d", x - 8f, top + ph + 20.dp.toPx(), textPaint,
+            )
+        }
+    }
+
+    Spacer(Modifier.height(8.dp))
+    allWorkerClasses.forEach { wc ->
+        val isSelected = selectedWorkerClass == wc
+        val alpha = if (isSelected || selectedWorkerClass == null) 1f else 0.4f
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { onWorkerClassClick(wc) },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val color = wcColors[wc] ?: Color.Gray
+            val name = wc.substringAfterLast('.').removeSuffix("Worker")
+            Canvas(modifier = Modifier.size(10.dp)) {
+                drawCircle(color, radius = size.minDimension / 2)
+            }
+            Spacer(Modifier.width(4.dp))
+            Text(name, modifier = Modifier.alpha(alpha), style = MaterialTheme.typography.labelSmall)
+        }
     }
 }

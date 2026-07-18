@@ -14,6 +14,6 @@ interface WorkersRunDao {
     @Query("SELECT COUNT(*) FROM WorkersRun")
     fun count(): Int
 
-    @Query("SELECT * FROM WorkersRun WHERE startedAt>=:from ORDER BY startedAt ASC")
+    @Query("SELECT * FROM WorkersRun WHERE startedAt>=:from ORDER BY startedAt ASC LIMIT 1000")
     fun list(from: Instant): List<WorkersRun>
 }
