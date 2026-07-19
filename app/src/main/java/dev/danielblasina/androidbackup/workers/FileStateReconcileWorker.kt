@@ -4,9 +4,7 @@ import android.content.Context
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.Worker
 import androidx.work.WorkerParameters
-import dev.danielblasina.androidbackup.database.AppDatabase
 import dev.danielblasina.androidbackup.database.FileActionType
 import dev.danielblasina.androidbackup.database.FileChangeQueue
 import dev.danielblasina.androidbackup.files.FileUploadAuth

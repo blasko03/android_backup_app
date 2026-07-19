@@ -1,14 +1,16 @@
 package dev.danielblasina.androidbackup.ui.screens
 
 import android.content.Context
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -23,8 +25,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,12 +46,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import dev.danielblasina.androidbackup.database.AppDatabase
+import dev.danielblasina.androidbackup.database.WorkersState
 import dev.danielblasina.androidbackup.workers.ChecksumCheckWorker
 import dev.danielblasina.androidbackup.workers.FileChangeScheduler
 import dev.danielblasina.androidbackup.workers.FileChangeWorker
@@ -59,14 +67,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.nativeCanvas
-import dev.danielblasina.androidbackup.database.WorkersState
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.logging.Logger
@@ -364,13 +364,16 @@ private fun RunsChartCard(seriesMap: Map<Pair<String, WorkersState>, List<Int>>)
     var filterWorkerClass by remember { mutableStateOf<String?>(null) }
 
     val chartColors = listOf(
-        Color(0xFFE53935), Color(0xFF43A047), Color(0xFF1E88E5), Color(0xFF8E24AA),
+        Color(0xFFE53935),
+        Color(0xFF43A047),
+        Color(0xFF1E88E5),
+        Color(0xFF8E24AA),
     )
     val workerClasses = seriesMap.keys.map { it.first }.distinct().sorted()
     val wcColors = workerClasses.mapIndexed { i, wc -> wc to chartColors[i % chartColors.size] }.toMap()
     val allFilteredSeries = seriesMap.filterKeys { (wc, state) ->
         (filterState == null || state == filterState) &&
-        (filterWorkerClass == null || wc == filterWorkerClass)
+            (filterWorkerClass == null || wc == filterWorkerClass)
     }
 
     Card(
@@ -439,8 +442,11 @@ private fun RunsChart(
                 val y = top + ph * (1f - count.toFloat() / maxY)
                 if (day == 0) path.moveTo(x, y) else path.lineTo(x, y)
             }
-            val effect = if (key.second == WorkersState.SUCCEEDED) null
-            else PathEffect.dashPathEffect(floatArrayOf(10f, 6f))
+            val effect = if (key.second == WorkersState.SUCCEEDED) {
+                null
+            } else {
+                PathEffect.dashPathEffect(floatArrayOf(10f, 6f))
+            }
             drawPath(path, color, style = Stroke(2.dp.toPx(), pathEffect = effect))
         }
 
@@ -455,13 +461,19 @@ private fun RunsChart(
         for (i in 0..gridLines) {
             val y = top + ph * (1f - i.toFloat() / gridLines)
             drawContext.canvas.nativeCanvas.drawText(
-                (maxY * i / gridLines).toString(), left - 40.dp.toPx(), y + 4f, textPaint,
+                (maxY * i / gridLines).toString(),
+                left - 40.dp.toPx(),
+                y + 4f,
+                textPaint,
             )
         }
         for (day in 0..30 step 5) {
             val x = left + (day.toFloat() / 29f) * pw
             drawContext.canvas.nativeCanvas.drawText(
-                if (day == 30) "0d" else "${30 - day}d", x - 8f, top + ph + 20.dp.toPx(), textPaint,
+                if (day == 30) "0d" else "${30 - day}d",
+                x - 8f,
+                top + ph + 20.dp.toPx(),
+                textPaint,
             )
         }
     }

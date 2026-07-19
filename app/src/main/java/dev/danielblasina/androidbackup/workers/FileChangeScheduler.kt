@@ -7,7 +7,6 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequest.Companion.MIN_PERIODIC_INTERVAL_MILLIS
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.Worker
 import androidx.work.WorkerParameters
 import java.time.Duration
 import java.util.logging.Logger

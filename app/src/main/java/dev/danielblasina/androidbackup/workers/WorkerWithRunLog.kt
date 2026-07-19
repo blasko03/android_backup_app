@@ -16,15 +16,17 @@ abstract class WorkerWithRunLog(appContext: Context, workerParams: WorkerParamet
         var state = WorkersState.FAILED
         try {
             val result = doWorkAction()
-            if (result == Result.success())
-                state =  WorkersState.SUCCEEDED
+            if (result == Result.success()) {
+                state = WorkersState.SUCCEEDED
+            }
             return result
-        }finally {
-            val wr = WorkersRun(id = this.id,
+        } finally {
+            val wr = WorkersRun(
+                id = this.id,
                 workerClass = this::class.java.name,
                 startedAt = started,
                 completedAt = Instant.now(),
-                state = state
+                state = state,
             )
             db.workersRunsDao().add(wr)
         }
