@@ -48,8 +48,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -67,8 +65,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
 import java.time.Instant
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import java.util.Date
+import java.util.Locale
 import java.util.logging.Logger
 
 private fun statusColor(state: WorkInfo.State?): Color = when (state) {
@@ -112,7 +114,8 @@ fun MainScreen(
     var countNextServerCheck by remember { mutableIntStateOf(0) }
     var countNextHashCheck by remember { mutableIntStateOf(0) }
     var runsCount by remember { mutableIntStateOf(0) }
-    var chartSeries by remember { mutableStateOf<Map<Pair<String, WorkersState>, List<Int>>>(emptyMap()) }
+    var chartSeries by remember { mutableStateOf<Map<Pair<String, WorkersState>, List<Instant>>>(emptyMap()) }
+    var daysRange by remember { mutableIntStateOf(7) }
     var schedulerState by remember { mutableStateOf<WorkInfo.State?>(null) }
     var detectorState by remember { mutableStateOf<WorkInfo.State?>(null) }
     var uploaderState by remember { mutableStateOf<WorkInfo.State?>(null) }
@@ -143,16 +146,13 @@ fun MainScreen(
             countNextServerCheck = db.fileStateDao().countNextServerCheck(Instant.now().minus(FileStateReconcileWorker.checkFrequency))
             countNextHashCheck = db.fileStateDao().countNextHashCheck(Instant.now().minus(ChecksumCheckWorker.checkFrequency))
             runsCount = db.workersRunsDao().count()
-            val thirtyDaysAgo = Instant.now().minus(30, ChronoUnit.DAYS)
-            val runs = db.workersRunsDao().list(thirtyDaysAgo)
-            val series = mutableMapOf<Pair<String, WorkersState>, MutableList<Int>>()
+            val nowForFetch = Instant.now()
+            val fetchStart = nowForFetch.atZone(ZoneId.systemDefault()).toLocalDate().atStartOfDay(ZoneId.systemDefault()).toInstant().minus(daysRange.toLong(), ChronoUnit.DAYS)
+            val runs = db.workersRunsDao().list(fetchStart)
+            val series = mutableMapOf<Pair<String, WorkersState>, MutableList<Instant>>()
             for (run in runs) {
-                val daysSince = ChronoUnit.DAYS.between(thirtyDaysAgo, run.startedAt)
-                val idx = daysSince.toInt()
-                if (idx in 0 until 30) {
-                    val key = run.workerClass to run.state
-                    series.getOrPut(key) { MutableList(30) { 0 } }[idx]++
-                }
+                val key = run.workerClass to run.state
+                series.getOrPut(key) { mutableListOf() }.add(run.startedAt)
             }
             chartSeries = series
         }
@@ -227,6 +227,8 @@ fun MainScreen(
 
             RunsChartCard(
                 seriesMap = chartSeries,
+                daysRange = daysRange,
+                onDaysRangeChange = { daysRange = it },
             )
 
             FilledTonalButton(
@@ -359,7 +361,11 @@ private fun StatRow(label: String, value: Int) {
 }
 
 @Composable
-private fun RunsChartCard(seriesMap: Map<Pair<String, WorkersState>, List<Int>>) {
+private fun RunsChartCard(
+    seriesMap: Map<Pair<String, WorkersState>, List<Instant>>,
+    daysRange: Int = 7,
+    onDaysRangeChange: (Int) -> Unit = {},
+) {
     var filterState by remember { mutableStateOf<WorkersState?>(null) }
     var filterWorkerClass by remember { mutableStateOf<String?>(null) }
 
@@ -381,8 +387,14 @@ private fun RunsChartCard(seriesMap: Map<Pair<String, WorkersState>, List<Int>>)
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Worker Runs (Last 30 Days)", style = MaterialTheme.typography.titleMedium)
+            Text("Worker Runs (Last $daysRange Days)", style = MaterialTheme.typography.titleMedium)
             HorizontalDivider()
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = daysRange == 1, onClick = { onDaysRangeChange(1) }, label = { Text("1d") })
+                FilterChip(selected = daysRange == 3, onClick = { onDaysRangeChange(3) }, label = { Text("3d") })
+                FilterChip(selected = daysRange == 7, onClick = { onDaysRangeChange(7) }, label = { Text("7d") })
+                FilterChip(selected = daysRange == 30, onClick = { onDaysRangeChange(30) }, label = { Text("30d") })
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = filterState == null, onClick = { filterState = null }, label = { Text("All") })
                 FilterChip(selected = filterState == WorkersState.SUCCEEDED, onClick = { filterState = WorkersState.SUCCEEDED }, label = { Text("Success") })
@@ -404,6 +416,7 @@ private fun RunsChartCard(seriesMap: Map<Pair<String, WorkersState>, List<Int>>)
                     onWorkerClassClick = { wc ->
                         filterWorkerClass = if (filterWorkerClass == wc) null else wc
                     },
+                    daysRange = daysRange,
                 )
             }
         }
@@ -412,42 +425,79 @@ private fun RunsChartCard(seriesMap: Map<Pair<String, WorkersState>, List<Int>>)
 
 @Composable
 private fun RunsChart(
-    seriesMap: Map<Pair<String, WorkersState>, List<Int>>,
+    seriesMap: Map<Pair<String, WorkersState>, List<Instant>>,
     allWorkerClasses: List<String> = emptyList(),
     wcColors: Map<String, Color> = emptyMap(),
     selectedWorkerClass: String? = null,
     onWorkerClassClick: (String) -> Unit = {},
+    daysRange: Int = 7,
 ) {
-    val maxY = (seriesMap.values.maxOfOrNull { it.maxOrNull() ?: 0 } ?: 1).coerceAtLeast(1)
+    val todayMidnight = Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().atStartOfDay(ZoneId.systemDefault()).toInstant()
+    val startDate = todayMidnight.minus(daysRange.toLong(), ChronoUnit.DAYS)
+    val endDate = todayMidnight.plus(1, ChronoUnit.DAYS)
+    val rangeMs = endDate.toEpochMilli() - startDate.toEpochMilli()
 
-    Canvas(modifier = Modifier.fillMaxWidth().height(280.dp)) {
-        val left = 48.dp.toPx()
+    Canvas(modifier = Modifier.fillMaxWidth().height(400.dp)) {
+        val left = 8.dp.toPx()
         val bottom = 32.dp.toPx()
         val top = 8.dp.toPx()
         val right = 8.dp.toPx()
         val pw = size.width - left - right
         val ph = size.height - top - bottom
-        val gridLines = 5
 
-        for (i in 0..gridLines) {
-            val y = top + ph * (1f - i.toFloat() / gridLines)
-            drawLine(Color.LightGray.copy(alpha = 0.5f), Offset(left, y), Offset(left + pw, y), 1f)
+        val byWorkerClass = mutableMapOf<String, MutableList<Map.Entry<Pair<String, WorkersState>, List<Instant>>>>()
+        for (entry in seriesMap) {
+            byWorkerClass.getOrPut(entry.key.first) { mutableListOf() }.add(entry)
         }
+        val wcEntries = byWorkerClass.entries.toList()
+        val n = wcEntries.size.coerceAtLeast(1)
 
-        for ((key, data) in seriesMap) {
-            val color = wcColors[key.first] ?: Color.Gray
-            val path = Path()
-            data.forEachIndexed { day, count ->
-                val x = left + (day.toFloat() / 29f) * pw
-                val y = top + ph * (1f - count.toFloat() / maxY)
-                if (day == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        for ((idx, wcEntry) in wcEntries.withIndex()) {
+            val (workerClass, subEntries) = wcEntry
+            val color = wcColors[workerClass] ?: Color.Gray
+            val baseY = top + ph * (idx + 1).toFloat() / (n + 1)
+            val dotRadius = 4.dp.toPx()
+
+            data class DotInfo(val x: Float, val state: WorkersState)
+            val dots = mutableListOf<DotInfo>()
+            for (subEntry in subEntries) {
+                val state = subEntry.key.second
+                val instants = subEntry.value
+                for (instant in instants) {
+                    val fraction = (instant.toEpochMilli() - startDate.toEpochMilli()).toFloat() / rangeMs.toFloat()
+                    val x = left + fraction.coerceIn(0f, 1f) * pw
+                    dots.add(DotInfo(x, state))
+                }
             }
-            val effect = if (key.second == WorkersState.SUCCEEDED) {
-                null
-            } else {
-                PathEffect.dashPathEffect(floatArrayOf(10f, 6f))
+
+            val overlapThreshold = 3 * dotRadius
+            val groups = mutableListOf<MutableList<DotInfo>>()
+            for (dot in dots.sortedBy { it.x }) {
+                var added = false
+                for (group in groups) {
+                    if (kotlin.math.abs(group.first().x - dot.x) <= overlapThreshold) {
+                        group.add(dot)
+                        added = true
+                        break
+                    }
+                }
+                if (!added) {
+                    groups.add(mutableListOf(dot))
+                }
             }
-            drawPath(path, color, style = Stroke(2.dp.toPx(), pathEffect = effect))
+
+            val horizontalSpacing = 3.dp.toPx()
+            for (group in groups) {
+                for ((i, dot) in group.withIndex()) {
+                    val xOffset = (i - (group.size - 1) / 2f) * horizontalSpacing
+                    val x = dot.x + xOffset
+                    if (dot.state == WorkersState.SUCCEEDED) {
+                        drawCircle(color, radius = dotRadius, center = Offset(x, baseY))
+                    } else {
+                        drawCircle(color, radius = dotRadius, center = Offset(x, baseY), style = Stroke(2.dp.toPx()))
+                    }
+                }
+            }
         }
 
         drawLine(Color.Gray, Offset(left, top), Offset(left, top + ph))
@@ -458,23 +508,22 @@ private fun RunsChart(
             color = android.graphics.Color.GRAY
             textSize = labelSize
         }
-        for (i in 0..gridLines) {
-            val y = top + ph * (1f - i.toFloat() / gridLines)
-            drawContext.canvas.nativeCanvas.drawText(
-                (maxY * i / gridLines).toString(),
-                left - 40.dp.toPx(),
-                y + 4f,
-                textPaint,
-            )
-        }
-        for (day in 0..30 step 5) {
-            val x = left + (day.toFloat() / 29f) * pw
-            drawContext.canvas.nativeCanvas.drawText(
-                if (day == 30) "0d" else "${30 - day}d",
-                x - 8f,
-                top + ph + 20.dp.toPx(),
-                textPaint,
-            )
+
+        val dateFormat = SimpleDateFormat("d/M", Locale.getDefault())
+        val labelStep = if (daysRange <= 7) 1 else 5
+        for (dayOffset in 0..daysRange + 1) {
+            val labelTime = startDate.plus(dayOffset.toLong(), ChronoUnit.DAYS)
+            val fraction = (labelTime.toEpochMilli() - startDate.toEpochMilli()).toFloat() / rangeMs.toFloat()
+            val x = left + fraction.coerceIn(0f, 1f) * pw
+            drawLine(Color.Gray.copy(alpha = 0.15f), Offset(x, top), Offset(x, top + ph))
+            if (dayOffset % labelStep == 0) {
+                drawContext.canvas.nativeCanvas.drawText(
+                    dateFormat.format(Date(labelTime.toEpochMilli())),
+                    x - 8f,
+                    top + ph + 20.dp.toPx(),
+                    textPaint,
+                )
+            }
         }
     }
 
