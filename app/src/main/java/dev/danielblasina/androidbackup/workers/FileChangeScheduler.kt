@@ -36,7 +36,7 @@ class FileChangeScheduler(appContext: Context, workerParams: WorkerParameters) :
             WorkManager.getInstance(applicationContext)
                 .enqueueUniquePeriodicWork(
                     this::class.java.name,
-                    ExistingPeriodicWorkPolicy.UPDATE,
+                    ExistingPeriodicWorkPolicy.REPLACE,
                     work,
                 )
         }
